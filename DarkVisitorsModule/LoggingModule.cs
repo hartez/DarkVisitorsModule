@@ -43,7 +43,19 @@ namespace DarkVisitors
 		public void Init(HttpApplication context)
 		{
 			_client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_token}");
+			context.BeginRequest += BeginRequest;
 			context.LogRequest += new EventHandler(LogRequest);
+		}
+
+		private void BeginRequest(object sender, EventArgs e)
+		{
+			HttpContext context = ((HttpApplication)sender).Context;
+			var agent = context.Request.Headers["User-Agent"];
+
+			if(ShouldSendToTheVoid(agent))
+			{
+				throw new HttpException(404, "Not Found");
+			}
 		}
 
 		public void LogRequest(object sender, EventArgs e)
@@ -52,13 +64,7 @@ namespace DarkVisitors
 
 			var path = context.Request.Path;
 			var headers = context.Request.Headers;
-			var agent = context.Request.Headers["User-Agent"];
-
-			if(ShouldDump(agent))
-			{
-				throw new HttpException(404, "Not Found");
-			}
-
+			
 			if (ShouldIgnore(path, headers))
 			{
 				return;
@@ -73,7 +79,7 @@ namespace DarkVisitors
 			_client.PostAsync(_endpoint, content);
 		}
 
-		bool ShouldDump(string agent)
+		bool ShouldSendToTheVoid(string agent)
 		{
 			if(agent == null)
 			{
