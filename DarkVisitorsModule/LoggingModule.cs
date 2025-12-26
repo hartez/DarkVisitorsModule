@@ -23,6 +23,18 @@ namespace DarkVisitors
 		// when humans visit the site for these. 
 		private static readonly string[] _ignoreRoots = { "/vendor", "/js", "/scss" };
 
+		private static readonly string[] _knownMiscreants = { 
+			"ClaudeBot",
+			"Scrapy",
+			"GoogleOther",
+			"Timpibot",
+			"Nutch",
+			"HTTrack",
+			"Dataprovider.com",
+			"Bytespider",
+			"Diffbot"
+		};
+
 		public void Dispose()
 		{
 			GC.SuppressFinalize(this);
@@ -40,6 +52,12 @@ namespace DarkVisitors
 
 			var path = context.Request.Path;
 			var headers = context.Request.Headers;
+			var agent = context.Request.Headers["User-Agent"];
+
+			if(ShouldDump(agent))
+			{
+				throw new HttpException(404, "Not Found");
+			}
 
 			if (ShouldIgnore(path, headers))
 			{
@@ -53,6 +71,16 @@ namespace DarkVisitors
 			var content = new StringContent(requestString, Encoding.UTF8, "application/json");
 
 			_client.PostAsync(_endpoint, content);
+		}
+
+		bool ShouldDump(string agent)
+		{
+			if(agent == null)
+			{
+				return false;
+			}
+
+			return _knownMiscreants.Any(m => agent.IndexOf(m, StringComparison.OrdinalIgnoreCase) >= 0);
 		}
 
 		bool ShouldIgnore(string path, NameValueCollection headers)
