@@ -12,12 +12,17 @@ namespace DarkVisitors
 {
 	public record Request(string request_path, string request_method, Dictionary<string, string> request_headers);
 
+	public class DisallowedUserAgentException : HttpException 
+	{
+		public DisallowedUserAgentException() : base(404, "Not Found") { }
+	}
+
 	public sealed class LoggingModule : IHttpModule
 	{
 		readonly string _endpoint = "https://api.darkvisitors.com/visits";
 		readonly string _token = "paste token here";
 		readonly HttpClient _client = new();
-
+		
 		// Don't report anything in these paths to DV; we don't really care about AI scraping them
 		// (they're all available elsewhere), and we don't want a zillion outgoing DV requests
 		// when humans visit the site for these. 
@@ -44,7 +49,7 @@ namespace DarkVisitors
 		{
 			_client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_token}");
 			context.BeginRequest += BeginRequest;
-			context.LogRequest += new EventHandler(LogRequest);
+			context.LogRequest += LogRequest;
 		}
 
 		private void BeginRequest(object sender, EventArgs e)
@@ -54,13 +59,18 @@ namespace DarkVisitors
 
 			if(ShouldSendToTheVoid(agent))
 			{
-				throw new HttpException(404, "Not Found");
+				throw new DisallowedUserAgentException();
 			}
 		}
 
-		public void LogRequest(object sender, EventArgs e)
+		private void LogRequest(object sender, EventArgs e)
 		{
 			HttpContext context = ((HttpApplication)sender).Context;
+
+			if(context.Error is DisallowedUserAgentException)
+			{
+				return;
+			}
 
 			var path = context.Request.Path;
 			var headers = context.Request.Headers;
